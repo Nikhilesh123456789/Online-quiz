@@ -16,14 +16,14 @@ public class App {
 	private final List<Question> questions = new ArrayList<>();
 	private JPanel takeQuizPanelContent;
 	private CardLayout cardLayout;
-	private final List<QuestionUI> questionUIs;
+	private final List<QuestionUI> questionUIs=new ArrayList<>();
 	private int currentQuestionIndex=0;
-	private JLabel questionLabel;
+	private JLabel questionIndexLabel;
 	private JLabel quizTitleLabel;
 	private JButton prevBtn;
 	private JButton nextBtn;
 	public static void main(String[] args) {
-		SwingUtilities.invokeLater(() -> new App().createAndShowGUI();
+		SwingUtilities.invokeLater(() -> new App().createAndShowGUI());
 	}
 	private void createAndShowGUI() {
 		frame = new JFrame("Quiz Management System");
@@ -32,7 +32,7 @@ public class App {
 		frame.setLocationRelativeTo(null);
 		JTabbedPane tabbedPane = new JTabbedPane();
 		tabbedPane.addTab("Admin",createAdminPanel());
-		tabbedPane.addTab("Take Quiz",createQuizPanel());
+		tabbedPane.addTab("Take Quiz",createTakeQuizPanel());
 		frame.add(tabbedPane);
 		frame.setVisible(true);
 	}
@@ -50,7 +50,7 @@ public class App {
 		JPanel typePanel = new JPanel(new BorderLayout(5,5));
 		typePanel.add(new JLabel("Question Type:"),BorderLayout.WEST);
 		questionTypeCombo = new JComboBox<>(new String[] {"MCQ","True/False","Text"});
-		typePanel.add(questionTypeCombo),BorderLayout.CENTER);
+		typePanel.add(questionTypeCombo,BorderLayout.CENTER);
 		formPanel.add(typePanel);
 		formPanel.add(Box.createVerticalStrut(10));
 		JPanel qPanel = new JPanel(new BorderLayout(5,5));
@@ -156,6 +156,208 @@ public class App {
 		correctAnswerField.setText("");
 	}
 	private void clearQuiz() {
-		
+		questions.clear();
+		statusLabel.setText("Questions:0");
+		JOptionPane.showMessageDialog(frame, "All questions cleared.","Info",JOptionPane.INFORMATION_MESSAGE);
+	}
+	private JPanel createTakeQuizPanel() {
+		JPanel panel = new JPanel(new BorderLayout());
+		JButton loadQuizBtn = new JButton("Load Quiz");
+		JButton submitBtn = new JButton("Submit Answers");
+		JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+		topPanel.add(new JLabel("After creating questions in Admin tab, click 'Load Quiz' here"));
+		topPanel.add(loadQuizBtn);
+		topPanel.add(submitBtn);
+		JPanel centerPanel = new JPanel(new BorderLayout());
+		quizTitleLabel = new JLabel("");
+		quizTitleLabel.setFont(quizTitleLabel.getFont().deriveFont(Font.BOLD,16f));
+		quizTitleLabel.setBorder(BorderFactory.createEmptyBorder(5,5,5,5));
+		centerPanel.add(quizTitleLabel,BorderLayout.NORTH);
+		cardLayout = new CardLayout();
+		takeQuizPanelContent = new JPanel(cardLayout);
+		JScrollPane scrollPane = new JScrollPane(takeQuizPanelContent);
+		centerPanel.add(scrollPane,BorderLayout.CENTER);
+		JPanel navPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+		prevBtn = new JButton("<");
+		nextBtn = new JButton(">");
+		questionIndexLabel = new JLabel("No questions loaded");
+		prevBtn.addActionListener(e-> showQuestion(currentQuestionIndex-1));
+		nextBtn.addActionListener(e-> showQuestion(currentQuestionIndex+1));
+		navPanel.add(prevBtn);
+		navPanel.add(questionIndexLabel);
+		navPanel.add(nextBtn);
+		centerPanel.add(navPanel,BorderLayout.SOUTH);
+		loadQuizBtn.addActionListener(e->buildQuizUI());
+		submitBtn.addActionListener(e->calculateScore());
+		panel.add(topPanel, BorderLayout.NORTH);
+		panel.add(centerPanel,BorderLayout.CENTER);
+		return panel;
+
+	}
+	
+	private void buildQuizUI() {
+		takeQuizPanelContent.removeAll();
+		questionUIs.clear();
+		currentQuestionIndex = 0;
+		if(questions.isEmpty()) {
+			quizTitleLabel.setText("");
+			questionIndexLabel.setText("No questions defined");
+			prevBtn.setEnabled(false);
+			nextBtn.setEnabled(false);
+			JPanel msgPanel = new JPanel();
+			msgPanel.add(new JLabel("No questions defined. Please add questions in Admin tab."));
+			takeQuizPanelContent.add(msgPanel,"MSG");
+			cardLayout.show(takeQuizPanelContent, "MSG");
+		}
+		else {
+			String title = quizTitleField.getText().trim();
+			if(!title.isEmpty()) {
+				quizTitleLabel.setText("Quiz:" + title);
+			}
+			else {
+				quizTitleLabel.setText("Quiz");
+			}
+			int index=0;
+			for(Question q:questions) {
+				QuestionUI ui = new QuestionUI(q,index+1);
+				questionUIs.add(ui);
+				takeQuizPanelContent.add(ui.getPanel(),"Q"+index);
+				index++;
+			}
+			showQuestion(0);
+		}
+		takeQuizPanelContent.revalidate();
+		takeQuizPanelContent.repaint();
+	}
+	private void showQuestion(int newIndex) {
+		if(!questionUIs.isEmpty()) {
+			return;
+		}
+		if(newIndex <0 || newIndex >=questionUIs.size()) {
+			return;
+		}
+		currentQuestionIndex = newIndex;
+		cardLayout.show(takeQuizPanelContent, "Q" + currentQuestionIndex);
+		int total = questionUIs.size();
+		questionIndexLabel.setText("Question" + (currentQuestionIndex+1)+ "of" + total);
+		prevBtn.setEnabled(currentQuestionIndex>0);
+		nextBtn.setEnabled(currentQuestionIndex<total-1);
+	}
+	private void calculateScore() {
+		if(questionUIs.isEmpty()) {
+			JOptionPane.showMessageDialog(frame,"Please load quiz first.","Error",JOptionPane.ERROR_MESSAGE);
+			return;
+		}
+		int correctCount=0;
+		StringBuilder details = new StringBuilder();
+		int i=1;
+		for(QuestionUI ui:questionUIs) {
+			String userAns = ui.getUserAnswer();
+			if(userAns==null || userAns.trim().isEmpty()) {
+				details.append("Q").append(i).append(":No answer\n");
+			}
+			else if(ui.getQuestion().isCorrect(userAns)) {
+				correctCount++;
+				details.append("Q").append(i).append(":Correct\n");
+			}
+			else {
+				details.append("Q").append(i).append("Wrong Correct:").append(ui.getQuestion().getCorrectAnswer()).append("\n");
+			}
+			i++;
+		}
+		int total = questionUIs.size();
+		JOptionPane.showMessageDialog(frame, "Score:" + correctCount + "/" +total+"\n\nDetails\n" + details, "Quiz Result",JOptionPane.INFORMATION_MESSAGE);
+	}
+	private enum QuestionType{
+		MCQ, TRUE_FALSE,TEXT
+	}
+	private static class Question{
+		private final String text;
+		private final QuestionType type;
+		private final List<String> options;
+		private final String correctAnswer;
+		public Question(String text,QuestionType type,List<String> options,String correctAnswer) {
+			this.text = text;
+			this.type=type;
+			this.options=options;
+			this.correctAnswer=correctAnswer;
+		}
+		public String getText() {
+			return text;
+		}
+		public QuestionType getType() {
+			return type;
+		}
+		public List<String> getOptions(){
+			return options;
+		}
+		public String getCorrectAnswer() {
+			return correctAnswer;
+		}
+		public boolean isCorrect(String userAnswer) {
+			if(userAnswer==null) {
+				return false;
+			}
+			return correctAnswer.trim().equalsIgnoreCase(userAnswer.trim());
+		}
+	}
+	private static class QuestionUI{
+		private final Question question;
+		private final JPanel panel;
+		private ButtonGroup buttonGroup;
+		private JTextField textField;
+		public QuestionUI(Question  question, int index) {
+			this.question = question;
+			this.panel = new JPanel();
+			panel.setLayout(new BoxLayout(panel,BoxLayout.Y_AXIS));
+			panel.setBorder(BorderFactory.createTitledBorder("Question" + index));
+			JLabel qLabel = new JLabel(question.getText());
+			panel.add(qLabel);
+			if(question.getType()==QuestionType.MCQ) {
+				buttonGroup = new ButtonGroup();
+				for(String opt:question.getOptions()) {
+					JRadioButton rb = new JRadioButton(opt);
+					buttonGroup.add(rb);
+					panel.add(rb);
+				}
+			}
+			else if(question.getType()==QuestionType.TRUE_FALSE) {
+				buttonGroup = new ButtonGroup();
+				JRadioButton trueBtn = new JRadioButton("True");
+				JRadioButton falseBtn = new JRadioButton("False");
+				buttonGroup.add(trueBtn);
+				buttonGroup.add(falseBtn);
+				panel.add(trueBtn);
+				panel.add(falseBtn);
+			}
+			else {
+				textField = new JTextField(30);
+				panel.add(textField);
+			}
+		}
+		public JPanel getPanel() {
+			return panel;
+		}
+		public Question getQuestion() {
+			return question;
+		}
+		public String getUserAnswer() {
+			if(question.getType()==QuestionType.MCQ || question.getType()==QuestionType.TRUE_FALSE) {
+				if(buttonGroup==null) {
+					return "";
+				}
+				Enumeration<AbstractButton> buttons = buttonGroup.getElements();
+				while(buttons.hasMoreElements()) {
+					AbstractButton b = buttons.nextElement();
+					if(b.isSelected()) {
+						return b.getText();
+					}
+				}
+				return "";
+			}
+			else {
+				return textField!=null ? textField.getText():"";
+			}
+		}
 	}
 } 
